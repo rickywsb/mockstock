@@ -1,4 +1,4 @@
-"""views/auto.py — 自动策略：规则、持仓、待成交、交易记录"""
+"""views/auto.py — 🤖 量化对手：规则、持仓、待成交、交易记录"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -12,23 +12,22 @@ from core.stock_chart import click_hint
 from core.ui import page_header
 
 accs, md = V.ensure()
-snap = V.snapshot("auto", accs, md)
+snap = st.session_state["_snaps"]["auto"]
 state = ledger.load_state().get("auto", {})
-page_header("自动策略", f"Day 0 = {snap['day0']} ｜ 已处理到 {state.get('last_decision_day') or '—'} 收盘 ｜ "
-                       "按规则自动买卖，作为我的账户的对照基准")
+page_header("🤖 量化对手", f"Day 0 = {snap['day0']} ｜ 已出招到 {state.get('last_decision_day') or '—'} 收盘 ｜ "
+                         "严格按规则买卖、从不犹豫、从不追悔——你能赢它吗？")
 
 c = st.columns(4)
 c[0].metric("净值（最新价）", V.money(snap["nav"]), f"{snap['ret']:+.2%}")
 c[1].metric("现金", V.money(snap["cash"]))
 c[2].metric("持仓", f"{len(snap['positions'])} / {config.AUTO_STRATEGY['max_positions']}")
 ts = report.trade_stats(snap["trades"])
-c[3].metric("已平仓胜率", f"{ts['win_rate']:.0%}" if ts.get("win_rate") is not None else "—",
-            f"{ts.get('n', 0)} 笔已平仓", delta_color="off")
+c[3].metric(f"胜率（{ts.get('n', 0)} 笔平仓）", f"{ts['win_rate']:.0%}" if ts.get("win_rate") is not None else "—")
 
 p = config.AUTO_STRATEGY
 lab = signal_lab.load_summary()
 grade = dict(zip(lab["summary"]["信号"], lab["summary"]["grade"])) if lab else {}
-with st.expander("📐 策略规则", expanded=not snap["trades"]):
+with st.expander("📐 它的招式（策略规则）", expanded=not snap["trades"]):
     st.markdown(
         f"- **买入**：触发以下任一买点信号（当天首次触发），且综合评分 ≥ **{p['min_score']}**，只做美股："
         + "、".join(f"{s}（{grade.get(s, '?')}）" for s in p["buy_signals"]) + "\n"
@@ -56,8 +55,8 @@ V.positions_table(snap, "auto_pos", md)
 st.subheader("🧾 交易记录")
 V.trades_table(snap["trades"], "auto_trades", md)
 
-with st.expander("⚠️ 重置自动策略"):
-    st.caption("清空自动账户全部交易，并从 Day 0 起按当前规则重新补算。")
+with st.expander("⚠️ 重置量化"):
+    st.caption("清空量化的全部交易，并从 Day 0 起按当前规则重新补算。")
     if st.checkbox("确认重置", key="confirm_reset_auto") and st.button("重置并重算"):
         ledger.reset_account("auto")
         st.session_state.pop(f"_caught_{md['close'].index[-1].date()}", None)

@@ -57,22 +57,25 @@ def _reload_stale_modules() -> None:
 
 _reload_stale_modules()
 
-st.set_page_config(page_title="模拟盘", page_icon="🧪", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="炒股大作战 · 你 vs 量化", page_icon="🎮", layout="wide", initial_sidebar_state="auto")
 
 pg = st.navigation(
     {
-        "": [
-            st.Page("views/overview.py", title="总览", icon="🧭", url_path="overview", default=True),
+        "开战": [
+            st.Page("views/lobby.py", title="选股大厅", icon="🎯", url_path="lobby", default=True),
+            st.Page("views/arena.py", title="对战", icon="⚔️", url_path="arena"),
         ],
-        "模拟账户": [
-            st.Page("views/manual.py", title="我的账户", icon="🧑‍💼", url_path="manual"),
-            st.Page("views/auto.py", title="自动策略", icon="🤖", url_path="auto"),
-            st.Page("views/report.py", title="持仓报告", icon="📄", url_path="report"),
-            st.Page("views/backtest.py", title="回测", icon="🧪", url_path="backtest"),
+        "我的": [
+            st.Page("views/manual.py", title="我的仓位", icon="💼", url_path="manual"),
+            st.Page("views/report.py", title="战报", icon="📜", url_path="report"),
         ],
-        "研究": [
-            st.Page("views/market.py", title="市场", icon="🗺️", url_path="market"),
-            st.Page("views/signals.py", title="个股信号", icon="📊", url_path="signals"),
+        "对手": [
+            st.Page("views/auto.py", title="量化对手", icon="🤖", url_path="auto"),
+            st.Page("views/backtest.py", title="回测实验室", icon="🧪", url_path="backtest"),
+        ],
+        "情报": [
+            st.Page("views/market.py", title="板块与高级选股", icon="🗺️", url_path="market"),
+            st.Page("views/signals.py", title="持仓信号", icon="📊", url_path="signals"),
         ],
     },
     expanded=True,
@@ -83,6 +86,24 @@ if st.session_state.get("_last_page") != pg.url_path:
     st.session_state["_last_page"] = pg.url_path
 
 from core.ui import inject_css
+from core import stock_chart
+from core.sim import game, view as V
+
 inject_css()
+game.inject()
+stock_chart.TRADE_PANEL = game.trade_panel        # 任何地方点开个股弹窗都能直接下单
+
+# 记分牌：大厅 / 对战页完整显示，其余页面一行
+accs, md = V.ensure()
+you, quant = V.snapshot("manual", accs, md), V.snapshot("auto", accs, md)
+spy = V.bench_series(md, accs["manual"]["day0"]).get("SPY")
+spy_ret = float(spy.iloc[-1] / spy.iloc[0] - 1) if spy is not None and len(spy) else None
+st.session_state["_snaps"] = {"manual": you, "auto": quant, "spy_ret": spy_ret}
+game.scoreboard(you, quant, spy_ret, compact=pg.url_path not in ("", "lobby", "arena"))
+
+if st.session_state.get("_toast"):
+    st.toast(st.session_state.pop("_toast"), icon="🎮")
+if st.session_state.pop("_balloons", False):
+    st.balloons()
 
 pg.run()

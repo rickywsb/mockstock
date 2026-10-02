@@ -12,7 +12,7 @@ from core.sim import ledger, report, strategy, view as V
 from core.ui import page_header
 
 accs, md = V.ensure()
-page_header("回测", "同一套撮合规则（收盘决策、次日开盘成交）在过去约 2 年的全市场数据上跑一遍")
+page_header("🧪 回测实验室", "调一调量化的参数，看它过去会怎么打：同一套撮合规则（收盘决策、次日开盘成交）在过去约 2 年的全市场数据上跑一遍")
 
 lab = signal_lab.load_summary()
 grade = dict(zip(lab["summary"]["信号"], lab["summary"]["grade"])) if lab else {}
@@ -47,7 +47,7 @@ if run:
 
 res = st.session_state.get("bt_res")
 if not res:
-    st.info("设置参数后点击运行。默认参数 = 当前自动策略的规则。")
+    st.info("设置参数后点击运行。默认参数 = 量化对手现在用的规则。")
     st.stop()
 bt, params = res
 nav = bt["nav"]
@@ -92,4 +92,4 @@ st.warning(
     "**回测的局限**：① 股票池是**今天**的 S&P 500 / Nasdaq-100 成分股，过去被剔除的股票不在里面（幸存者偏差，结果偏乐观）；"
     "② 综合评分是全市场百分位，用的是当时可得的数据，但评分方法本身是看过这 2 年数据后设计的（有过拟合风险）；"
     "③ 按开盘价成交、固定滑点，未计跳空无法成交、流动性冲击和税费。请把回测当作规则的「健全性检查」，"
-    "真正的检验是 Day 0 起的模拟盘。")
+    "真正的检验是 Day 0 起的对战。")

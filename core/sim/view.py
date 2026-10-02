@@ -16,7 +16,7 @@ from core import daily_momentum as dm
 from core.sim import ledger, strategy
 from core.ui import pz_table, pct
 
-COLORS = {"auto": "#16181D", "manual": "#1C6FB8", "SPY": "#B8B4A8", "QQQ": "#C9A227"}
+COLORS = {"auto": "#3A86FF", "manual": "#FF4F7B", "SPY": "#A39DBA", "QQQ": "#FFBE0B"}
 
 
 # ─── 行情 ─────────────────────────────────────────────────────────────────────
@@ -99,20 +99,22 @@ def snapshot(account: str, accs: dict, md: dict, live: bool = True) -> dict:
     rows = []
     for t, p in pos.items():
         last = px.get(t, p["avg"])
-        mv = p["qty"] * last
+        mv = p["qty"] * last                       # 空头为负
+        d = 1 if p["qty"] > 0 else -1
         rows.append({"ticker": t, "name": md["names"].get(t, t), "qty": p["qty"], "avg": p["avg"], "last": last,
-                     "mv": mv, "pnl": mv - p["cost"], "ret": last / p["avg"] - 1 if p["avg"] else None,
+                     "dir": "做多" if d > 0 else "做空",
+                     "mv": mv, "pnl": mv - p["cost"], "ret": (last / p["avg"] - 1) * d if p["avg"] else None,
                      "first_buy": p["first_buy"],
                      "score": float(score_row[t]) if t in score_row.index and pd.notna(score_row[t]) else None})
     mv_total = sum(r["mv"] for r in rows)
     nav = c + mv_total
     for r in rows:
-        r["weight"] = r["mv"] / nav if nav else None
+        r["weight"] = abs(r["mv"]) / nav if nav else None
     held_ever = sorted({t["ticker"] for t in trades})
     cl = closes_for(held_ever, md) if held_ever else pd.DataFrame(index=md["close"].index)
     series = ledger.nav_series(trades, a["initial_cash"], a["day0"], cl) if held_ever else \
         pd.Series(a["initial_cash"], index=md["close"].index[md["close"].index >= pd.Timestamp(a["day0"])])
-    return {"account": account, "name": a["name"], "initial": a["initial_cash"], "day0": a["day0"],
+    return {"account": account, "name": ledger.ACCOUNT_NAMES[account], "initial": a["initial_cash"], "day0": a["day0"],
             "cash": c, "nav": nav, "ret": nav / a["initial_cash"] - 1, "positions": rows,
             "trades": trades, "series": series}
 
@@ -168,13 +170,14 @@ def drawdown_chart(nav: pd.Series, height: int = 200) -> go.Figure:
 def positions_table(snap: dict, key: str, md: dict) -> None:
     rows = [{"ticker": r["ticker"], "name": r["name"],
              "sub": " · ".join(x for x in [r["name"] if r["name"] != r["ticker"] else "", md["sectors"].get(r["ticker"]) or ""] if x),
-             "qty": r["qty"], "avg": r["avg"], "last": r["last"], "mv": r["mv"], "pnl": r["pnl"],
+             "dir": r["dir"], "qty": abs(r["qty"]), "avg": r["avg"], "last": r["last"], "mv": r["mv"], "pnl": r["pnl"],
              "ret": pct(r["ret"]), "weight": pct(r["weight"]),
              "score": int(r["score"]) if r["score"] is not None else None, "first_buy": r["first_buy"]}
             for r in snap["positions"]]
     cols = [
         {"key": "ticker", "label": "股票", "kind": "stock", "width": "minmax(140px,1.4fr)", "sortable": True},
-        {"key": "qty", "label": "股数", "kind": "num", "decimals": 0, "width": "70px", "align": "right"},
+        {"key": "dir", "label": "方向", "kind": "pill", "width": "64px"},
+        {"key": "qty", "label": "股数", "kind": "num", "decimals": 0, "width": "64px", "align": "right"},
         {"key": "avg", "label": "成本", "kind": "num", "decimals": 2, "width": "84px", "align": "right"},
         {"key": "last", "label": "最新价", "kind": "num", "decimals": 2, "width": "84px", "align": "right"},
         {"key": "mv", "label": "市值", "kind": "num", "decimals": 0, "prefix": "$", "width": "96px",
@@ -191,7 +194,7 @@ def positions_table(snap: dict, key: str, md: dict) -> None:
     pz_table(rows, cols, key=key, sort="mv", empty="暂无持仓", min_width=960)
 
 
-SIDE_TXT = {"buy": "买入", "sell": "卖出"}
+SIDE_TXT = {"buy": "买入", "sell": "卖出", "short": "做空", "cover": "平空"}
 MODE_TXT = {"open": "次日开盘", "close": "收盘价", "latest": "最新价"}
 
 

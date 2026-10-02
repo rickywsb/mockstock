@@ -34,20 +34,21 @@ def market_data(period: str = "2y") -> dict:
     spy_df = dm.fetch_ohlcv_histories(["SPY"], period=period, complete_bars_only=True).get("SPY")
     spy = spy_df["Close"] if spy_df is not None else pd.Series(dtype=float)
     masks = signal_lab.signal_masks(b["panel"], b["feat"], b["score"], spy)
-    _refresh_saved(b, held, watch)
+    table = rating.latest(b, set(), set())
+    _refresh_saved(b, table)
     uni = b["universe"]
-    return {"open": b["panel"]["open"], "close": b["panel"]["close"], "score": b["score"],
+    return {"open": b["panel"]["open"], "close": b["panel"]["close"], "score": b["score"], "table": table,
             "onsets": {k: signal_lab.onsets(v) for k, v in masks.items()}, "spy": spy,
             "names": dict(zip(uni["ticker"], uni["name"])), "sectors": dict(zip(uni["ticker"], uni["sector"]))}
 
 
-def _refresh_saved(b: dict, held: set[str], watch: set[str]) -> None:
+def _refresh_saved(b: dict, table: pd.DataFrame) -> None:
     """顺手更新 data/rating_latest.json 与 signal_lab*.json（个股弹窗、选股器用），已是最新则跳过。"""
     as_of = str(b["score"].index[-1].date())
     try:
         _, saved = rating.load_latest()
         if saved != as_of:
-            rating.save_latest(rating.latest(b, held, watch), as_of)
+            rating.save_latest(table, as_of)
         if (signal_lab.load_latest().get("as_of") or "") != as_of:
             signal_lab.save(signal_lab.run(b), config.market_today().isoformat())
     except Exception:

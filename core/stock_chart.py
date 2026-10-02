@@ -22,6 +22,7 @@ from core import daily_momentum as dm
 from core.technical_analysis import get_ohlcv
 
 _OPEN = "_chart_open"          # session_state: {"owner": 表格 key, "ticker": ..., "name": ...}
+TRADE_PANEL = None                # 可选：弹窗顶部的下单面板 callable(ticker, name)（模拟盘设置）
 _GEN = "_chart_gen"            # session_state: {表格 key: 代数}，关闭弹窗后 +1 以重置行选中
 _PERIODS = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "1Y": "1y", "2Y": "2y"}
 
@@ -150,10 +151,12 @@ def _on_dismiss() -> None:
         gen[opened["owner"]] = gen.get(opened["owner"], 0) + 1
 
 
-@st.dialog("📈 技术图表", width="large", on_dismiss=_on_dismiss)
+@st.dialog("🎯 个股 · 下单", width="large", on_dismiss=_on_dismiss)
 def _chart_dialog(ticker: str, name: str | None = None) -> None:
     title = f"{name}（{ticker}）" if name and name != ticker else ticker
     st.markdown(f"### {title}")
+    if TRADE_PANEL:
+        TRADE_PANEL(ticker, name)
 
     rr = _rating_row(ticker)
     if rr:
@@ -184,7 +187,7 @@ def _chart_dialog(ticker: str, name: str | None = None) -> None:
                                   textposition="outside", cliponaxis=False,
                                   marker_color=["#2F8A57" if v >= 0 else "#C7711F" for v in vals]))
             lim = max(10.0, max(abs(v) for v in vals) * 1.4)
-            f2.update_layout(height=170, margin=dict(t=24, b=4, l=4, r=4), title=dict(text="评分构成（相对全市场均值）", font=dict(size=13)),
+            f2.update_layout(height=170, margin=dict(t=24, b=4, l=4, r=4), title=dict(text="评分构成（相对全市场均值）", font=dict(size=13, family="Noto Sans SC, sans-serif")),
                              xaxis=dict(range=[-lim, lim], zeroline=True, zerolinecolor="#8A877E", showgrid=False),
                              yaxis=dict(autorange="reversed"), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(f2, width="stretch", config={"displayModeBar": False})

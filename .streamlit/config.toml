@@ -1,30 +1,30 @@
-# 全站主题（改版设计稿 · 视觉规范）
+# 游戏风主题：你 vs 量化（粉 = 你，蓝 = 量化，金 = 高亮）
 [theme]
 base = "light"
-primaryColor = "#16181D"
-backgroundColor = "#F7F6F2"
-secondaryBackgroundColor = "#EFEDE7"
-textColor = "#16181D"
-linkColor = "#0E5E6F"
-borderColor = "#E2DFD7"
-dataframeBorderColor = "#E2DFD7"
-dataframeHeaderBackgroundColor = "#F3F1EC"
+primaryColor = "#FF4F7B"
+backgroundColor = "#FFF8EE"
+secondaryBackgroundColor = "#FFEFD9"
+textColor = "#1E1442"
+linkColor = "#3A86FF"
+borderColor = "#1E1442"
+dataframeBorderColor = "#EADFCB"
+dataframeHeaderBackgroundColor = "#FFEFD9"
 showSidebarBorder = false
-baseRadius = "10px"
-greenColor = "#1F7A45"
-redColor = "#B3362A"
-orangeColor = "#C7711F"
-blueColor = "#1C4F7A"
-font = "Noto Sans SC:https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap"
-headingFont = "Noto Sans SC:https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap"
-codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-headingFontWeights = 700
-chartCategoricalColors = ["#1C4F7A", "#C7711F", "#1F7A45", "#7B4CC2", "#B3362A", "#0E5E6F", "#8A877E"]
+baseRadius = "14px"
+greenColor = "#06A77D"
+redColor = "#E63946"
+orangeColor = "#FF8A00"
+blueColor = "#3A86FF"
+font = "Noto Sans SC:https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+headingFont = "ZCOOL QingKe HuangYou:https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&display=swap"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+headingFontWeights = 400
+chartCategoricalColors = ["#FF4F7B", "#3A86FF", "#FFBE0B", "#06A77D", "#8338EC", "#FF8A00", "#8A84A3"]
 
 [theme.sidebar]
-backgroundColor = "#16181D"
-secondaryBackgroundColor = "#2B2E35"
-textColor = "#D9D6CE"
-borderColor = "#2B2E35"
-primaryColor = "#E8A84C"
-linkColor = "#E8A84C"
+backgroundColor = "#1E1442"
+secondaryBackgroundColor = "#2E2160"
+textColor = "#EDE7FF"
+borderColor = "#2E2160"
+primaryColor = "#FFBE0B"
+linkColor = "#FFBE0B"

@@ -1,4 +1,4 @@
-"""views/report.py — 持仓报告：随时生成，含指标、曲线、持仓、已平仓交易、按股票盈亏，可下载"""
+"""views/report.py — 📜 战报：随时生成，含指标、曲线、持仓、已平仓交易、按股票盈亏，可下载"""
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -11,15 +11,15 @@ from core.sim import ledger, report, view as V
 from core.ui import page_header
 
 accs, md = V.ensure()
-page_header("持仓报告", "随时生成；指标按每日收盘价计算，持仓按最新价")
+page_header("📜 战报", "随时生成；指标按每日收盘价计算，持仓按最新价；可下载")
 
 acc = st.segmented_control(" ", list(ledger.ACCOUNT_IDS), format_func=ledger.ACCOUNT_NAMES.get, default="manual",
                            key="rep_acc", label_visibility="collapsed") or "manual"
-snap = V.snapshot(acc, accs, md)
+snap = st.session_state["_snaps"][acc]
 bench = V.bench_series(md, snap["day0"])
 p = report.perf(snap["series"], bench.get("SPY"))
 ts = report.trade_stats(snap["trades"])
-other = V.snapshot("auto" if acc == "manual" else "manual", accs, md)
+other = st.session_state["_snaps"]["auto" if acc == "manual" else "manual"]
 
 
 def f(v, fmt):
@@ -68,7 +68,7 @@ ct = ledger.closed_trades(snap["trades"])
 if ct.empty:
     st.caption("暂无已平仓交易")
 else:
-    st.dataframe(ct.rename(columns={"ticker": "股票", "entry": "建仓", "exit": "卖出", "qty": "股数",
+    st.dataframe(ct.rename(columns={"ticker": "股票", "dir": "方向", "entry": "建仓", "exit": "卖出", "qty": "股数",
                                     "avg_cost": "成本", "exit_price": "卖出价", "pnl": "盈亏", "ret": "收益",
                                     "days": "天数", "reason": "理由", "signal": "信号"})
                  .style.format({"股数": "{:.0f}", "成本": "{:,.2f}", "卖出价": "{:,.2f}", "盈亏": "{:+,.0f}",
@@ -77,7 +77,7 @@ else:
 
 # ─── 下载 ─────────────────────────────────────────────────────────────────────
 def _md_report() -> str:
-    L = [f"# 模拟盘持仓报告 · {snap['name']}", "",
+    L = [f"# 炒股大作战战报 · {snap['name']}", "",
          f"生成时间：{datetime.now():%Y-%m-%d %H:%M}　Day 0：{snap['day0']}　行情截至：{md['close'].index[-1].date()}", "",
          "## 表现", "",
          f"- 净值 {V.money(snap['nav'])}（{snap['ret']:+.2%}），现金 {V.money(snap['cash'])}",
@@ -85,9 +85,9 @@ def _md_report() -> str:
          f"- 最大回撤 {f(p.get('max_dd'), '.2%')}，夏普 {f(p.get('sharpe'), '.2f')}，β {f(p.get('beta'), '.2f')}",
          f"- 买入 {ts.get('n_buys', 0)} 笔，已平仓 {ts.get('n', 0)} 笔，胜率 {f(ts.get('win_rate'), '.0%')}，"
          f"盈亏比 {f(ts.get('profit_factor'), '.2f')}", "", "## 持仓", "",
-         "| 股票 | 股数 | 成本 | 最新价 | 市值 | 收益 | 仓位 | 评分 |", "|---|---:|---:|---:|---:|---:|---:|---:|"]
-    for r in sorted(snap["positions"], key=lambda r: -r["mv"]):
-        L.append(f"| {r['ticker']} | {r['qty']:.0f} | {r['avg']:,.2f} | {r['last']:,.2f} | {r['mv']:,.0f} | "
+         "| 股票 | 方向 | 股数 | 成本 | 最新价 | 市值 | 收益 | 仓位 | 评分 |", "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
+    for r in sorted(snap["positions"], key=lambda r: -abs(r["mv"])):
+        L.append(f"| {r['ticker']} | {r['dir']} | {abs(r['qty']):.0f} | {r['avg']:,.2f} | {r['last']:,.2f} | {r['mv']:,.0f} | "
                  f"{f(r['ret'], '+.1%')} | {f(r['weight'], '.1%')} | {f(r['score'], '.0f')} |")
     L += ["", "## 交易记录", "", "| 日期 | 股票 | 方向 | 股数 | 价格 | 理由 |", "|---|---|---|---:|---:|---|"]
     for t in sorted(snap["trades"], key=lambda x: x["date"], reverse=True):

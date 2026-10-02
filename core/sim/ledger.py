@@ -1,9 +1,11 @@
 """core/sim/ledger.py — 模拟账户与交易流水
 
 交易流水是唯一数据源：持仓、现金、每日净值都由流水按日回放算出，永远对得上。
-交易记录：{id, account, date（成交日）, ticker, side（buy/sell）, qty, price（含滑点的成交价）,
+交易记录：{id, account, date（成交日）, ticker, side（buy 买入 / sell 卖出 / short 做空 / cover 平空）, qty（正数）,
+          price（含滑点的成交价）,
           mode（open 开盘 / close 收盘 / latest 最新价）, reason, signal, created_at}
-只交易美股（美元计价，免汇率换算）。
+只交易美股（美元计价，免汇率换算）。持仓用带符号的股数：多头为正、空头为负；做空所得计入现金，
+净值 = 现金 + Σ 股数 × 价格（空头股数为负，自然扣减）。
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import config
 
 ACCOUNT_IDS = ("auto", "manual")
-ACCOUNT_NAMES = {"auto": "自动策略", "manual": "我的账户"}
+ACCOUNT_NAMES = {"auto": "量化", "manual": "你"}
 
 
 # ─── 读写 ─────────────────────────────────────────────────────────────────────
@@ -102,26 +104,34 @@ def make_trade(account: str, date: str, ticker: str, side: str, qty: float, pric
 
 # ─── 回放 ─────────────────────────────────────────────────────────────────────
 
+SIGN = {"buy": 1, "cover": 1, "sell": -1, "short": -1}
+
+
 def positions(trades: list[dict], upto: str | None = None) -> dict[str, dict]:
-    """{ticker: {qty, cost（剩余持仓成本）, avg, realized（已实现盈亏）, first_buy}}（平均成本法）。"""
+    """
+    {ticker: {qty（带符号）, cost（剩余持仓成本，带符号）, avg, realized（已实现盈亏）, first_buy（本轮建仓日）}}
+    平均成本法：同方向加仓摊薄成本；反方向成交先平仓并结算盈亏（不允许一笔直接反手）。
+    """
     pos: dict[str, dict] = {}
     for t in trades:
         if upto and t["date"] > upto:
             continue
         p = pos.setdefault(t["ticker"], {"qty": 0.0, "cost": 0.0, "realized": 0.0, "first_buy": None})
-        if t["side"] == "buy":
-            if p["qty"] <= 1e-9:
-                p["first_buy"] = t["date"]
-            p["qty"] += t["qty"]
-            p["cost"] += t["qty"] * t["price"]
+        q = SIGN[t["side"]] * t["qty"]
+        if abs(p["qty"]) <= 1e-9 or (p["qty"] > 0) == (q > 0):
+            if abs(p["qty"]) <= 1e-9:
+                p["first_buy"], p["cost"], p["qty"] = t["date"], 0.0, 0.0
+            p["qty"] += q
+            p["cost"] += q * t["price"]
         else:
-            avg = p["cost"] / p["qty"] if p["qty"] else 0.0
-            q = min(t["qty"], p["qty"])
-            p["realized"] += q * (t["price"] - avg)
-            p["qty"] -= q
-            p["cost"] -= q * avg
+            avg = p["cost"] / p["qty"]
+            close = min(abs(q), abs(p["qty"]))
+            direction = 1 if p["qty"] > 0 else -1
+            p["realized"] += close * (t["price"] - avg) * direction
+            p["qty"] -= direction * close
+            p["cost"] -= direction * close * avg
     for p in pos.values():
-        p["avg"] = p["cost"] / p["qty"] if p["qty"] > 1e-9 else 0.0
+        p["avg"] = p["cost"] / p["qty"] if abs(p["qty"]) > 1e-9 else 0.0
     return pos
 
 
@@ -130,12 +140,12 @@ def cash(trades: list[dict], initial: float, upto: str | None = None) -> float:
     for t in trades:
         if upto and t["date"] > upto:
             continue
-        c += (-1 if t["side"] == "buy" else 1) * t["qty"] * t["price"]
+        c -= SIGN[t["side"]] * t["qty"] * t["price"]
     return c
 
 
 def open_positions(trades: list[dict], upto: str | None = None) -> dict[str, dict]:
-    return {k: v for k, v in positions(trades, upto).items() if v["qty"] > 1e-9}
+    return {k: v for k, v in positions(trades, upto).items() if abs(v["qty"]) > 1e-9}
 
 
 def nav_series(trades: list[dict], initial: float, day0: str, closes: pd.DataFrame) -> pd.Series:
@@ -154,25 +164,27 @@ def nav_series(trades: list[dict], initial: float, day0: str, closes: pd.DataFra
 
 
 def closed_trades(trades: list[dict]) -> pd.DataFrame:
-    """把每次卖出与对应的平均成本配对，得到「已完成的交易」：收益率、盈亏、持有天数。"""
+    """每次平仓（卖出 / 平空）与对应平均成本配对，得到「已完成的交易」：方向、收益率、盈亏、持有天数。"""
     rows, pos = [], {}
     for t in trades:
         p = pos.setdefault(t["ticker"], {"qty": 0.0, "cost": 0.0, "first": None})
-        if t["side"] == "buy":
-            if p["qty"] <= 1e-9:
-                p["first"] = t["date"]
-            p["qty"] += t["qty"]
-            p["cost"] += t["qty"] * t["price"]
-        else:
-            avg = p["cost"] / p["qty"] if p["qty"] else 0.0
-            q = min(t["qty"], p["qty"])
-            rows.append({"ticker": t["ticker"], "entry": p["first"], "exit": t["date"], "qty": q,
-                         "avg_cost": avg, "exit_price": t["price"], "pnl": q * (t["price"] - avg),
-                         "ret": t["price"] / avg - 1 if avg else None,
-                         "days": (pd.Timestamp(t["date"]) - pd.Timestamp(p["first"])).days if p["first"] else None,
-                         "reason": t.get("reason", ""), "signal": t.get("signal", "")})
-            p["qty"] -= q
-            p["cost"] -= q * avg
+        q = SIGN[t["side"]] * t["qty"]
+        if abs(p["qty"]) <= 1e-9 or (p["qty"] > 0) == (q > 0):
+            if abs(p["qty"]) <= 1e-9:
+                p.update(qty=0.0, cost=0.0, first=t["date"])
+            p["qty"] += q
+            p["cost"] += q * t["price"]
+            continue
+        avg = p["cost"] / p["qty"]
+        close = min(abs(q), abs(p["qty"]))
+        d = 1 if p["qty"] > 0 else -1
+        rows.append({"ticker": t["ticker"], "dir": "多" if d > 0 else "空", "entry": p["first"], "exit": t["date"],
+                     "qty": close, "avg_cost": avg, "exit_price": t["price"], "pnl": close * (t["price"] - avg) * d,
+                     "ret": (t["price"] / avg - 1) * d if avg else None,
+                     "days": (pd.Timestamp(t["date"]) - pd.Timestamp(p["first"])).days if p["first"] else None,
+                     "reason": t.get("reason", ""), "signal": t.get("signal", "")})
+        p["qty"] -= d * close
+        p["cost"] -= d * close * avg
     return pd.DataFrame(rows)
 
 

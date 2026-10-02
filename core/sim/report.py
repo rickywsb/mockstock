@@ -62,14 +62,14 @@ def trade_stats(trades: list[dict]) -> dict:
 
 
 def exposure(trades: list[dict], nav: pd.Series, closes: pd.DataFrame) -> float | None:
-    """平均仓位占比（持仓市值 / 净值）。"""
+    """平均仓位占比（多空持仓总市值 / 净值）。"""
     if nav.empty:
         return None
     vals = []
     px = closes.ffill()
     for d, v in nav.items():
         pos = ledger.open_positions(trades, d.date().isoformat())
-        mv = sum(p["qty"] * float(px.at[d, t]) for t, p in pos.items() if t in px.columns and pd.notna(px.at[d, t]))
+        mv = sum(abs(p["qty"]) * float(px.at[d, t]) for t, p in pos.items() if t in px.columns and pd.notna(px.at[d, t]))
         vals.append(mv / v if v else 0)
     return float(np.mean(vals))
 
@@ -79,7 +79,7 @@ def ticker_pnl(trades: list[dict], last_px: dict[str, float]) -> pd.DataFrame:
     pos = ledger.positions(trades)
     rows = []
     for t, p in pos.items():
-        unreal = (last_px.get(t, 0) - p["avg"]) * p["qty"] if p["qty"] > 1e-9 and t in last_px else 0.0
+        unreal = (last_px.get(t, 0) - p["avg"]) * p["qty"] if abs(p["qty"]) > 1e-9 and t in last_px else 0.0
         rows.append({"ticker": t, "qty": p["qty"], "avg": p["avg"], "last": last_px.get(t),
                      "realized": p["realized"], "unrealized": unreal, "total": p["realized"] + unreal})
     return pd.DataFrame(rows).sort_values("total", ascending=False) if rows else pd.DataFrame()
