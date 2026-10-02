@@ -1,0 +1,104 @@
+"""config.py — 全局路径与参数常量"""
+
+from pathlib import Path
+
+# ── 目录 ──────────────────────────────────────────────────────────────────────
+APP_DIR       = Path(__file__).resolve().parent
+DATA_DIR      = APP_DIR / "data"
+SNAPSHOTS_DIR = DATA_DIR / "snapshots"
+
+# ── 数据文件 ──────────────────────────────────────────────────────────────────
+PORTFOLIO_PATH   = DATA_DIR / "portfolio.json"
+PRICE_CACHE_PATH = DATA_DIR / "price_cache.json"
+FX_CACHE_PATH    = DATA_DIR / "fx_cache.json"
+WATCHLIST_PATH   = DATA_DIR / "watchlist.json"
+NOTES_DIR        = DATA_DIR / "notes"
+
+# ── 关联的历史 xlsx（仅供参考/导出，不作为数据源）────────────────────────────
+XLSX_PATH = APP_DIR.parent / "value_update" / "小白小鸡毛基金管理公司.xlsx"
+
+# ── 价格缓存参数 ──────────────────────────────────────────────────────────────
+FX_CACHE_TTL_MINUTES = 60   # FX 汇率缓存有效期（分钟）
+
+# ── 板块色彩映射（Plotly color）──────────────────────────────────────────────
+SECTOR_COLORS = {
+    "光":   "#4C9BE8",
+    "存":   "#E8844C",
+    "配置": "#4CE87A",
+    "半导体": "#B44CE8",
+    "其他": "#E8D04C",
+    "期权": "#A0A0A0",
+    "现金": "#5DE8D0",
+}
+
+# 现金仓位的特殊 yf_ticker（price 固定为 1.0 USD，shares = 金额）
+CASH_TICKER = "CASH"
+
+# ── 非美元标的的原始货币（yf_ticker → 货币代码；GBp = 英国便士）──────────────
+CURRENCY_MAP: dict[str, str] = {
+    "3363.TWO":  "TWD",
+    "IQE.L":     "GBp",
+    "000660.KS": "KRW",
+    "7709.HK":   "HKD",
+    "XFAB.PA":   "EUR",
+    "SIVE.ST":   "SEK",
+}
+
+# ── 杠杆 / 反向产品（yf_ticker → 杠杆倍数，负数=反向）：动量排名时标注，信号检验时排除 ──
+LEVERAGED_TICKERS: dict[str, int] = {
+    "7709.HK": 2,   # CSOP SK Hynix Daily 2x
+    "AAOX":    2,   # Tradr 2X Long AAOI Daily ETF
+    "AVGX":    2,   # Defiance Daily Target 2X Long AVGO ETF
+    "SNXX":    2,   # Tradr 2X Long SNDK Daily ETF
+    "SOXS":   -3,   # Direxion Daily Semiconductor Bear 3X（反向）
+}
+
+# ── 相对强度基准：按持仓 sector 选板块基准，另统一对比大盘 ──────────────────
+SECTOR_BENCHMARKS: dict[str, str] = {
+    "半导体": "SOXX",
+    "存":     "SOXX",
+    "光":     "LAZR",   # Tema Photonics & Optical ETF（2026-06-30 上市，历史不足 3 月时 RS 按 1 月算）
+    "配置":   "QQQ",
+    "其他":   "QQQ",
+}
+DEFAULT_BENCHMARK = "SPY"      # 未映射板块 / 大盘对比基准
+
+# ── 板块雷达自定义篮子（等权合成指数，可自行增删成分）──────────────────────────
+CUSTOM_BASKETS: dict[str, list[str]] = {
+    "光模块":  ["LITE", "COHR", "AAOI", "FN", "CIEN", "GLW", "CRDO", "MRVL"],
+    "存储":    ["MU", "SNDK", "WDC", "STX"],
+    "AI电力":  ["VRT", "ETN", "CEG"],
+}
+
+# ── 市场日期：以美东时间为准（云端服务器是 UTC，美东晚 8 点后会跨日）───────────
+MARKET_TZ = "America/New_York"
+
+
+def market_today():
+    """当前美东日期。替代 date.today()，避免 UTC 服务器跨日。"""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo(MARKET_TZ)).date()
+
+# ── 确保目录存在 ──────────────────────────────────────────────────────────────
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ═══ 模拟交易（mockstock）═══════════════════════════════════════════════════════
+SIM_ACCOUNTS_PATH = DATA_DIR / "sim_accounts.json"     # 账户设定（初始资金 / Day 0 / 成本）
+SIM_TRADES_PATH   = DATA_DIR / "sim_trades.json"       # 交易流水（唯一数据源，持仓与净值都由它回放）
+SIM_STATE_PATH    = DATA_DIR / "sim_state.json"        # 自动账户：已处理到哪一天、待成交订单
+
+SIM_INITIAL_CASH = 100_000.0
+SIM_SLIPPAGE     = 0.0005          # 每次成交 0.05% 滑点（免佣金）
+
+# 自动策略（默认 = 全市场信号实验室中 A/B 级的 O'Neil 买卖点）
+AUTO_STRATEGY = {
+    "buy_signals":  ["放量创52周新高", "放量上涨", "财报跳空 Power Gap", "首次回踩 50 日线"],
+    "sell_signals": ["放量跌破 50 日线", "相对强弱转弱"],
+    "min_score":     80,       # 只买综合评分 ≥80 的股票
+    "max_positions": 10,       # 最多持有 10 只，每只目标权重 = 净值 / 10
+    "stop_loss":     0.08,     # 从买入价下跌 8% 止损（O'Neil 7–8% 规则）
+    "us_only":       True,     # 只交易美股（避免汇率换算）
+}
